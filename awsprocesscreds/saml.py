@@ -1,5 +1,4 @@
-from sys import version_info
-
+from __future__ import print_function
 import base64
 import getpass
 import logging
@@ -18,6 +17,7 @@ from botocore.credentials import CachedCredentialFetcher
 import botocore.session
 
 from .compat import escape
+from six.moves import input
 
 
 class SAMLError(Exception):
@@ -248,11 +248,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
     )
 
     def get_response(self, prompt):
-        py3 = version_info[0] > 2
-        if py3:
-            response = input(prompt)
-        else:
-            response = raw_input(prompt)
+        response = input(prompt)
         if response == "":
             raise SAMLError(self._ERROR_AUTH_CANCELLED)
         return response
