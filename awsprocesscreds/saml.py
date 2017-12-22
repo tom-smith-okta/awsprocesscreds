@@ -7,6 +7,7 @@ from hashlib import sha1
 from copy import deepcopy
 
 import six
+from six.moves import input
 import requests
 import botocore
 from botocore.client import Config
@@ -17,7 +18,6 @@ from botocore.credentials import CachedCredentialFetcher
 import botocore.session
 
 from .compat import escape
-from six.moves import input
 
 
 class SAMLError(Exception):
