@@ -284,10 +284,10 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
             if totp_response.status_code == 200:
                 return self.get_assertion_from_response(endpoint, totp_parsed)
             elif totp_response.status_code >= 400:
-                print totp_parsed["errorCauses"][0]["errorSummary"]
+                print(totp_parsed["errorCauses"][0]["errorSummary"])
 
     def process_mfa_push(self, endpoint, url, statetoken):
-        print "Waiting for result of push notification ..."
+        print("Waiting for result of push notification ...")
         while True:
             totp_response = self._requests_session.post(
                 url,
@@ -315,7 +315,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
             if totp_response.status_code == 200:
                 return self.get_assertion_from_response(endpoint, totp_parsed)
             elif totp_response.status_code >= 400:
-                print totp_parsed["errorCauses"][0]["errorSummary"]
+                print(totp_parsed["errorCauses"][0]["errorSummary"])
 
     def verify_sms_factor(self, url, statetoken, passcode):
         body = {'stateToken': statetoken}
@@ -330,7 +330,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
 
     def process_mfa_sms(self, endpoint, url, statetoken):
         # Need to trigger the initial code to be sent ...
-        print "Requesting code to be sent to your phone ..."
+        print("Requesting code to be sent to your phone ...")
         self.verify_sms_factor(url, statetoken, "")
         while True:
             response = self.get_response(self._MSG_SMS_CODE)
@@ -345,32 +345,32 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                     return self.get_assertion_from_response(endpoint,
                                                             sms_parsed)
                 elif sms_response.status_code >= 400:
-                    print sms_parsed["errorCauses"][0]["errorSummary"]
+                    print(sms_parsed["errorCauses"][0]["errorSummary"])
 
     def display_mfa_choices(self, parsed):
         index = 1
         for f in parsed["_embedded"]["factors"]:
             if f["factorType"] == "token":
-                print "%s: %s token" % (index, f["provider"])
+                print("%s: %s token" % (index, f["provider"]))
             elif f["factorType"] == "token:software:totp":
-                print "%s: %s authenticator app" % (index, f["provider"])
+                print("%s: %s authenticator app" % (index, f["provider"]))
             elif f["factorType"] == "sms":
-                print "%s: SMS text message" % index
+                print("%s: SMS text message" % index)
             elif f["factorType"] == "push":
-                print "%s: Push notification" % index
+                print("%s: Push notification" % index)
             elif f["factorType"] == "question":
-                print "%s: Security question" % index
+                print("%s: Security question" % index)
             else:
-                print "%s: %s %s" % (index, f["provider"], f["factorType"])
+                print("%s: %s %s" % (index, f["provider"], f["factorType"]))
             index += 1
         return index
 
     def get_mfa_choice(self, parsed):
         while True:
-            print "Please choose from the following authentication choices:"
+            print("Please choose from the following authentication choices:")
             count = self.display_mfa_choices(parsed)
-            print ("Enter the number corresponding to your choice "
-                   "or press RETURN")
+            print("Enter the number corresponding to your choice "
+                  "or press RETURN")
             response = self.get_response("to cancel authentication: ")
             choice = 0
             try:
