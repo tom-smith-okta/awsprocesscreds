@@ -1,3 +1,5 @@
+from sys import version_info
+
 import base64
 import getpass
 import logging
@@ -216,6 +218,189 @@ class GenericFormsBasedAuthenticator(SAMLAuthenticator):
 class OktaAuthenticator(GenericFormsBasedAuthenticator):
     _AUTH_URL = '/api/v1/authn'
 
+    _ERROR_AUTH_CANCELLED = (
+        'Authentication cancelled'
+    )
+
+    _ERROR_LOCKED_OUT = (
+        "You are locked out of your Okta account. Go to %s to unlock it."
+    )
+
+    _ERROR_PASSWORD_EXPIRED = (
+        "Your password has expired. Go to %s to change it."
+    )
+
+    _ERROR_MFA_ENROLL = (
+        "You need to enroll a MFA first."
+    )
+
+    _MSG_AUTH_CODE = (
+        "Authentication code (RETURN to cancel): "
+    )
+
+    _MSG_ANSWER = (
+        "Answer (RETURN to cancel): "
+    )
+
+    _MSG_SMS_CODE = (
+        "Authentication code (RETURN to cancel, "
+        "'RESEND' to get new code sent): "
+    )
+
+    def get_response(self, prompt):
+        py3 = version_info[0] > 2
+        if py3:
+            response = input(prompt)
+        else:
+            response = raw_input(prompt)
+        if response == "":
+            raise SAMLError(self._ERROR_AUTH_CANCELLED)
+        return response
+
+    def get_assertion_from_response(self, endpoint, parsed):
+        session_token = parsed['sessionToken']
+        saml_url = endpoint + '?sessionToken=%s' % session_token
+        response = self._requests_session.get(saml_url)
+        logger.info(
+            'Received HTTP response of status code: %s', response.status_code)
+        r = self._extract_saml_assertion_from_response(response.text)
+        logger.info(
+            'Received the following SAML assertion: \n%s', r,
+            extra={'is_saml_assertion': True}
+        )
+        return r
+
+    def process_mfa_totp(self, endpoint, url, statetoken):
+        while True:
+            response = self.get_response(self._MSG_AUTH_CODE)
+            totp_response = self._requests_session.post(
+                url,
+                headers={'Content-Type': 'application/json',
+                         'Accept': 'application/json'},
+                data=json.dumps({'stateToken': statetoken,
+                                 'passCode': response})
+            )
+            totp_parsed = json.loads(totp_response.text)
+            if totp_response.status_code == 200:
+                return self.get_assertion_from_response(endpoint, totp_parsed)
+            elif totp_response.status_code >= 400:
+                print totp_parsed["errorCauses"][0]["errorSummary"]
+
+    def process_mfa_push(self, endpoint, url, statetoken):
+        print "Waiting for result of push notification ..."
+        while True:
+            totp_response = self._requests_session.post(
+                url,
+                headers={'Content-Type': 'application/json',
+                         'Accept': 'application/json'},
+                data=json.dumps({'stateToken': statetoken})
+            )
+            totp_parsed = json.loads(totp_response.text)
+            if totp_parsed["status"] == "SUCCESS":
+                return self.get_assertion_from_response(endpoint, totp_parsed)
+            elif totp_parsed["factorResult"] != "WAITING":
+                raise SAMLError(self._ERROR_AUTH_CANCELLED)
+
+    def process_mfa_security_question(self, endpoint, url, statetoken):
+        while True:
+            response = self.get_response(self._MSG_ANSWER)
+            totp_response = self._requests_session.post(
+                url,
+                headers={'Content-Type': 'application/json',
+                         'Accept': 'application/json'},
+                data=json.dumps({'stateToken': statetoken,
+                                 'answer': response})
+            )
+            totp_parsed = json.loads(totp_response.text)
+            if totp_response.status_code == 200:
+                return self.get_assertion_from_response(endpoint, totp_parsed)
+            elif totp_response.status_code >= 400:
+                print totp_parsed["errorCauses"][0]["errorSummary"]
+
+    def verify_sms_factor(self, url, statetoken, passcode):
+        body = {'stateToken': statetoken}
+        if passcode != "":
+            body['passCode'] = passcode
+        return self._requests_session.post(
+            url,
+            headers={'Content-Type': 'application/json',
+                     'Accept': 'application/json'},
+            data=json.dumps(body)
+        )
+
+    def process_mfa_sms(self, endpoint, url, statetoken):
+        # Need to trigger the initial code to be sent ...
+        print "Requesting code to be sent to your phone ..."
+        self.verify_sms_factor(url, statetoken, "")
+        while True:
+            response = self.get_response(self._MSG_SMS_CODE)
+            if response == "RESEND":
+                response = ""
+            sms_response = self.verify_sms_factor(url, statetoken, response)
+            # If we've just requested a resend, don't check the result
+            # - just loop around to get the next response from the user.
+            if response != "":
+                sms_parsed = json.loads(sms_response.text)
+                if sms_response.status_code == 200:
+                    return self.get_assertion_from_response(endpoint,
+                                                            sms_parsed)
+                elif sms_response.status_code >= 400:
+                    print sms_parsed["errorCauses"][0]["errorSummary"]
+
+    def display_mfa_choices(self, parsed):
+        index = 1
+        for f in parsed["_embedded"]["factors"]:
+            if f["factorType"] == "token":
+                print "%s: %s token" % (index, f["provider"])
+            elif f["factorType"] == "token:software:totp":
+                print "%s: %s authenticator app" % (index, f["provider"])
+            elif f["factorType"] == "sms":
+                print "%s: SMS text message" % index
+            elif f["factorType"] == "push":
+                print "%s: Push notification" % index
+            elif f["factorType"] == "question":
+                print "%s: Security question" % index
+            else:
+                print "%s: %s %s" % (index, f["provider"], f["factorType"])
+            index += 1
+        return index
+
+    def get_mfa_choice(self, parsed):
+        while True:
+            print "Please choose from the following authentication choices:"
+            count = self.display_mfa_choices(parsed)
+            print ("Enter the number corresponding to your choice "
+                   "or press RETURN")
+            response = self.get_response("to cancel authentication: ")
+            choice = 0
+            try:
+                choice = int(response)
+            except ValueError:
+                pass
+            if choice > 0 and choice < count:
+                return choice
+
+    def process_mfa_verification(self, endpoint, parsed):
+        # If we've only got one factor, pick that automatically
+        if len(parsed["_embedded"]["factors"]) == 1:
+            choice = 1
+        else:
+            choice = self.get_mfa_choice(parsed)
+        factor = parsed["_embedded"]["factors"][choice - 1]
+        url = factor["_links"]["verify"]["href"]
+        statetoken = parsed["stateToken"]
+        if factor["factorType"] == "token:software:totp":
+            return self.process_mfa_totp(endpoint, url, statetoken)
+        elif factor["factorType"] == "push":
+            return self.process_mfa_push(endpoint, url, statetoken)
+        elif factor["factorType"] == "question":
+            return self.process_mfa_security_question(endpoint,
+                                                      url, statetoken)
+        elif factor["factorType"] == "sms":
+            return self.process_mfa_sms(endpoint, url, statetoken)
+        else:
+            raise SAMLError("Unsupported factor")
+
     def retrieve_saml_assertion(self, config):
         self._validate_config_values(config)
         endpoint = config['saml_endpoint']
@@ -235,6 +420,30 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                              'password': password})
         )
         parsed = json.loads(response.text)
+        logger.info(
+            'Got status %s and response: %s',
+            response.status_code, response.text
+        )
+        if response.status_code == 401:
+            raise SAMLError(self._ERROR_LOGIN_FAILED_NON_200 %
+                            parsed["errorSummary"])
+        if "status" in parsed:
+            if parsed["status"] == "SUCCESS":
+                return self.get_assertion_from_response(endpoint, parsed)
+            elif parsed["status"] == "LOCKED_OUT":
+                raise SAMLError(self._ERROR_LOCKED_OUT %
+                                parsed["_links"]["href"])
+            elif parsed["status"] == "PASSWORD_EXPIRED":
+                raise SAMLError(self._ERROR_PASSWORD_EXPIRED %
+                                parsed["_links"]["href"])
+            elif parsed["status"] == "MFA_ENROLL":
+                raise SAMLError(self._ERROR_MFA_ENROLL)
+            elif parsed["status"] == "MFA_REQUIRED":
+                return self.process_mfa_verification(endpoint, parsed)
+        # If we get to here, the chances are we're running the functional
+        # tests and NOT running against Okta's service so keep the
+        # original code to keep the tests happy as the tests don't use
+        # valid Okta responses ...
         session_token = parsed['sessionToken']
         saml_url = endpoint + '?sessionToken=%s' % session_token
         response = self._requests_session.get(saml_url)
