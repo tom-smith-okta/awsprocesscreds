@@ -12,7 +12,6 @@ import botocore.session
 from .saml import SAMLCredentialFetcher
 from .cache import JSONFileCache
 
-
 def saml(argv=None, prompter=getpass.getpass, client_creator=None,
          cache_dir=None):
     parser = argparse.ArgumentParser()

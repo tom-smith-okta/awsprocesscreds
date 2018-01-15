@@ -1,0 +1,18 @@
+{
+    "sms": {
+        "factor_type": "sms",
+        "provider": "OKTA"
+    },
+    "Okta Verify (push)": {
+        "factor_type": "push",
+        "provider": "OKTA"
+    },
+    "Okta Verify (otp)": {
+        "factor_type": "token:software:totp",
+        "provider": "OKTA"
+    },
+    "Google Authenticator": {
+        "factor_type": "token:software:totp",
+        "provider": "GOOGLE"
+    }
+}
