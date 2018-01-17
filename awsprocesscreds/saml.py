@@ -281,12 +281,12 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                 return self.get_assertion_from_response(endpoint, totp_parsed)
             elif totp_response.status_code >= 400:
                 error = totp_parsed["errorCauses"][0]["errorSummary"]
-                getpass.getpass("%s\r\nPress RETURN to continue\r\n"
-                                % error)
+                _password_prompter("%s\r\nPress RETURN to continue\r\n"
+                                   % error)
 
     def process_mfa_push(self, endpoint, url, statetoken):
-        getpass.getpass(("Waiting for result of push notification ..."
-                         "press RETURN to continue"))
+        _password_prompter(("Waiting for result of push notification ..."
+                            "press RETURN to continue"))
         while True:
             totp_response = self._requests_session.post(
                 url,
@@ -315,8 +315,8 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                 return self.get_assertion_from_response(endpoint, totp_parsed)
             elif totp_response.status_code >= 400:
                 error = totp_parsed["errorCauses"][0]["errorSummary"]
-                getpass.getpass("%s\r\nPress RETURN to continue\r\n"
-                                % error)
+                _password_prompter("%s\r\nPress RETURN to continue\r\n"
+                                   % error)
 
     def verify_sms_factor(self, url, statetoken, passcode):
         body = {'stateToken': statetoken}
@@ -331,8 +331,8 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
 
     def process_mfa_sms(self, endpoint, url, statetoken):
         # Need to trigger the initial code to be sent ...
-        getpass.getpass(("Requesting code to be sent to your phone ..."
-                         " press RETURN to continue"))
+        _password_prompter(("Requesting code to be sent to your phone ..."
+                            " press RETURN to continue"))
         self.verify_sms_factor(url, statetoken, "")
         while True:
             response = self.get_response(self._MSG_SMS_CODE)
@@ -348,8 +348,8 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                                                             sms_parsed)
                 elif sms_response.status_code >= 400:
                     error = sms_parsed["errorCauses"][0]["errorSummary"]
-                    getpass.getpass("%s\r\nPress RETURN to continue\r\n"
-                                    % error)
+                    _password_prompter("%s\r\nPress RETURN to continue\r\n"
+                                       % error)
 
     def display_mfa_choices(self, parsed):
         index = 1
@@ -380,7 +380,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                       "choices:\r\n") + prompt
             prompt += ("Enter the number corresponding to your choice "
                        "or press RETURN to cancel authentication: ")
-            response = self.get_response(prompt)
+            response = self._password_prompter(prompt)
             choice = 0
             try:
                 choice = int(response)
