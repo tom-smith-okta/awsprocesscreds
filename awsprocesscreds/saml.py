@@ -280,10 +280,13 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
             if totp_response.status_code == 200:
                 return self.get_assertion_from_response(endpoint, totp_parsed)
             elif totp_response.status_code >= 400:
-                print(totp_parsed["errorCauses"][0]["errorSummary"])
+                error = totp_parsed["errorCauses"][0]["errorSummary"]
+                getpass.getpass("%s\r\nPress RETURN to continue\r\n"
+                                % error)
 
     def process_mfa_push(self, endpoint, url, statetoken):
-        print("Waiting for result of push notification ...")
+        getpass.getpass(("Waiting for result of push notification ..."
+                         "press RETURN to continue"))
         while True:
             totp_response = self._requests_session.post(
                 url,
@@ -311,7 +314,9 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
             if totp_response.status_code == 200:
                 return self.get_assertion_from_response(endpoint, totp_parsed)
             elif totp_response.status_code >= 400:
-                print(totp_parsed["errorCauses"][0]["errorSummary"])
+                error = totp_parsed["errorCauses"][0]["errorSummary"]
+                getpass.getpass("%s\r\nPress RETURN to continue\r\n"
+                                % error)
 
     def verify_sms_factor(self, url, statetoken, passcode):
         body = {'stateToken': statetoken}
@@ -326,7 +331,8 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
 
     def process_mfa_sms(self, endpoint, url, statetoken):
         # Need to trigger the initial code to be sent ...
-        print("Requesting code to be sent to your phone ...")
+        getpass.getpass(("Requesting code to be sent to your phone ..."
+                         " press RETURN to continue"))
         self.verify_sms_factor(url, statetoken, "")
         while True:
             response = self.get_response(self._MSG_SMS_CODE)
@@ -341,32 +347,39 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                     return self.get_assertion_from_response(endpoint,
                                                             sms_parsed)
                 elif sms_response.status_code >= 400:
-                    print(sms_parsed["errorCauses"][0]["errorSummary"])
+                    error = sms_parsed["errorCauses"][0]["errorSummary"]
+                    getpass.getpass("%s\r\nPress RETURN to continue\r\n"
+                                    % error)
 
     def display_mfa_choices(self, parsed):
         index = 1
+        prompt = ""
         for f in parsed["_embedded"]["factors"]:
             if f["factorType"] == "token":
-                print("%s: %s token" % (index, f["provider"]))
+                prompt += "%s: %s token\r\n" % (index, f["provider"])
             elif f["factorType"] == "token:software:totp":
-                print("%s: %s authenticator app" % (index, f["provider"]))
+                prompt += ("%s: %s authenticator app\r\n"
+                           % (index, f["provider"]))
             elif f["factorType"] == "sms":
-                print("%s: SMS text message" % index)
+                prompt += "%s: SMS text message\r\n" % index
             elif f["factorType"] == "push":
-                print("%s: Push notification" % index)
+                prompt += "%s: Push notification\r\n" % index
             elif f["factorType"] == "question":
-                print("%s: Security question" % index)
+                prompt += "%s: Security question\r\n" % index
             else:
-                print("%s: %s %s" % (index, f["provider"], f["factorType"]))
+                prompt += "%s: %s %s\r\n" % (index,
+                                             f["provider"],
+                                             f["factorType"])
             index += 1
-        return index
+        return index, prompt
 
     def get_mfa_choice(self, parsed):
         while True:
-            print("Please choose from the following authentication choices:")
-            count = self.display_mfa_choices(parsed)
-            print("Enter the number corresponding to your choice "
-                  "or press RETURN")
+            count, prompt = self.display_mfa_choices(parsed)
+            prompt = ("Please choose from the following authentication"
+                      "choices:\r\n") + prompt
+            prompt += ("Enter the number corresponding to your choice "
+                       "or press RETURN\r\n")
             response = self.get_response("to cancel authentication: ")
             choice = 0
             try:
