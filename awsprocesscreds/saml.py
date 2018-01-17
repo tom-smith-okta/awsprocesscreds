@@ -314,10 +314,18 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
         if parsed['status'] == "SUCCESS":
             session_token = parsed['sessionToken']
         elif parsed['status'] == "MFA_REQUIRED":
-            # session_token = self._satisfy_okta_mfa(parsed)
-            session_token = OktaMFA(parsed)
 
-            sys.exit()
+            okta_mfa = OktaMFA(parsed)
+
+            session_token = okta_mfa.get_session_token()
+
+            print "the session_token is: %s" % session_token
+
+
+            session_token = okta_mfa.session_token
+            
+            print "the session_token is: %s" % session_token
+
         else:
             logger.info(
             'Cannot proceed with authentication.', parsed['status'])
