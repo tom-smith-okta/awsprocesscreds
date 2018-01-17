@@ -378,7 +378,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
         while True:
             count, prompt = self.display_mfa_choices(parsed)
             prompt = ("Please choose from the following authentication"
-                      "choices:\r\n") + prompt
+                      " choices:\r\n") + prompt
             prompt += ("Enter the number corresponding to your choice "
                        "or press RETURN to cancel authentication: ")
             response = self._password_prompter(prompt)
