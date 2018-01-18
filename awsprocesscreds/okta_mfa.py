@@ -12,8 +12,8 @@ class OktaMFAError(Exception):
 class OktaMFA:
 
     # this tool supports only a subset of Okta's MFA factors
-    sf_json = open(os.getcwd() + "/awsprocesscreds/supported_factors.json")
-    _SUPPORTED_FACTORS = json.load(sf_json)
+    # sf_json = open(os.getcwd() + "/awsprocesscreds/supported_factors.json")
+    # _SUPPORTED_FACTORS = json.load(sf_json)
 
     print "the supported factors are: %s" % supported_factors.sf
 
