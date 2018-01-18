@@ -211,79 +211,6 @@ class GenericFormsBasedAuthenticator(SAMLAuthenticator):
             if element.attrib.get(attr) == trait:
                 return element.attrib.get('value')
 
-    def _satisfy_okta_mfa(self, auth_response):
-
-        okta_mfa = OktaMFA(auth_response)
-
-        # okta_mfa.test_func()
-
-        # sf_json = open(os.getcwd() + "/awsprocesscreds/supported_factors.json")
-
-        # supported_factors = json.load(sf_json)
-
-        # my_factors = auth_response["_embedded"]["factors"]
-
-        # i = 0
-        # user_has_supported_factor = False
-        # choices = ""
-
-        # for factor in my_factors:
-
-        #     friendly_name = self._get_friendly_name(factor, supported_factors)
-
-        #     if friendly_name != "not supported":
-        #         # print "%s) %s" % (i, friendly_name)
-        #         choices += "%s) %s \n" % (i, friendly_name)
-        #         user_has_supported_factor = True
-        #     i += 1
-
-        # if not user_has_supported_factor:
-        #     raise OktaMFAError("you are not enrolled in any factors that are supported by this tool")
-
-        # print "Choose a factor: \n%s" % choices
-
-        # print "Please choose one of the factors below:"
-
-        # print "the value of embedded[factors] is: %s" % auth_response["_embedded"]["factors"]
-
-        # print "the supported factors are: "
-
-        # print "the cwd is: %s " % os.getcwd()
-
-
-        # print "the type of supported_factors is: %s " % type(supported_factors)
-
-        # print "the supported factors dict is: %s " % supported_factors 
-
-        # for key, value in supported_factors.iteritems():
-        #     # print "the friendly_name is: %s" % factor["factor_type"]
-        #     print "the key is: %s " % key
-        #     print "the factor_type is: %s " % value["factor_type"]
-        #     print "the provider is: %s " % value["provider"]
-
-        # i = 0
-        # user_has_supported_factor = False
-
-        # for factor in factors:
-
-        #     friendly_name = self._get_friendly_name(factor["factorType"], factor["provider"])
-
-        #     if friendly_name != "not supported":
-        #         print "%s) %s" % (i, friendly_name)
-        #         user_has_supported_factor = True
-        #     i += 1
-
-        # if not user_has_supported_factor:
-        #     raise OktaMFAError("you are not enrolled in any factors that are supported by this tool")
-
-        return "someValue"
-
-    def _get_friendly_name(self, this_factor, supported_factors):
-        for key, value in supported_factors.iteritems():
-            if this_factor["factorType"] == value["factor_type"] and this_factor["provider"] == value["provider"]:
-                return key
-        return "not supported"
-
 class OktaAuthenticator(GenericFormsBasedAuthenticator):
     _AUTH_URL = '/api/v1/authn'
 
@@ -308,6 +235,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
 
         parsed = json.loads(response.text)
 
+        # new/modified code
         logger.info(
             'Received response from Okta with an authentication status of: %s', parsed['status'])
 
@@ -321,17 +249,11 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
 
             print "the session_token is: %s" % session_token
 
-
-            session_token = okta_mfa.session_token
-            
-            print "the session_token is: %s" % session_token
-
         else:
             logger.info(
             'Cannot proceed with authentication.', parsed['status'])
+        # end new code
 
-
-        # session_token = parsed['sessionToken']
         saml_url = endpoint + '?sessionToken=%s' % session_token
         response = self._requests_session.get(saml_url)
         logger.info(

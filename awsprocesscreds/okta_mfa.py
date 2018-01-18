@@ -4,6 +4,8 @@ from botocore.compat import json
 import os
 import requests
 
+import supported_factors
+
 class OktaMFAError(Exception):
     pass
 
@@ -12,6 +14,10 @@ class OktaMFA:
     # this tool supports only a subset of Okta's MFA factors
     sf_json = open(os.getcwd() + "/awsprocesscreds/supported_factors.json")
     _SUPPORTED_FACTORS = json.load(sf_json)
+
+    print "the supported factors are: %s" % supported_factors.sf
+
+    _SUPPORTED_FACTORS = supported_factors.sf
 
     # initialize with the object returned from Okta authn request
     def __init__(self, authn_obj, requests_session=None):
@@ -45,7 +51,7 @@ class OktaMFA:
                 my_sf[i]["url"] = factor["_links"]["verify"]["href"]
                 my_sf[i]["name"] = friendly_name
                 user_has_supported_factor = True
-            i += 1
+                i += 1
 
         if not user_has_supported_factor:
             raise OktaMFAError("you are not enrolled in any factors that are supported by this tool")
@@ -92,23 +98,18 @@ class OktaMFA:
         print "the response text is: %s " % response.text
 
         if parsed["status"] == "SUCCESS":
-            print "in okta_mfa, the sessionToken is: %s " % parsed["sessionToken"]
 
             self.session_token = parsed["sessionToken"]
-            # return parsed["sessionToken"]
 
-            print "the session_token is: %s " % parsed["status"]
-
-        # self.session_token = "someToken"
         return parsed["sessionToken"]
 
     def _send_challenge(self, choice):
         url = self.my_supported_factors[choice]["url"]
-        body = "{\"stateToken\": \"%s\"}" % self.authn_obj["stateToken"]
 
         print "the state token is: %s " % self.authn_obj["stateToken"]
 
         payload = "{\"stateToken\": \"%s\"}" % self.authn_obj["stateToken"]
+
         headers = {
             'Accept': "application/json",
             'Content-Type': "application/json",
@@ -122,10 +123,6 @@ class OktaMFA:
         print "the response text is: %s " % response.text
 
         return response
-
-
-
-
 
     def _get_friendly_name(self, this_factor):
         for key, value in self._SUPPORTED_FACTORS.iteritems():
