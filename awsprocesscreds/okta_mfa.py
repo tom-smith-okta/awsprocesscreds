@@ -1,5 +1,7 @@
 import botocore
 from botocore.compat import json
+import getpass
+import logging
 
 import os
 import requests
@@ -9,13 +11,19 @@ import supported_factors
 class OktaMFAError(Exception):
     pass
 
+logger = logging.getLogger(__name__)
+
 class OktaMFA:
 
     # this tool supports only a subset of Okta's MFA factors
     # sf_json = open(os.getcwd() + "/awsprocesscreds/supported_factors.json")
     # _SUPPORTED_FACTORS = json.load(sf_json)
 
-    print "the supported factors are: %s" % supported_factors.sf
+    # user_input = getpass.getpass("test pwd input: ")
+
+    # print "the user_input is %s " % user_input
+
+    # print "the supported factors are: %s" % supported_factors.sf
 
     _SUPPORTED_FACTORS = supported_factors.sf
 
@@ -27,11 +35,17 @@ class OktaMFA:
             requests_session = requests.Session()
             self._requests_session = requests_session
 
-        print "authn obj is: %s " % authn_obj
+            logger.info(
+                "authn obj is: %s " % authn_obj)
+
+        # print "authn obj is: %s " % authn_obj
 
         self.my_supported_factors = self._get_my_supported_factors()
 
-        print "my supported factors are: %s" % self.my_supported_factors
+        # print "my supported factors are: %s" % self.my_supported_factors
+
+        logger.info(
+            "my supported factors are: %s" % self.my_supported_factors)
 
     def _get_my_supported_factors(self):
 
@@ -63,9 +77,13 @@ class OktaMFA:
         for key, value in self.my_supported_factors.iteritems():
             choices += "%s) %s \n" % (key, value["name"])
 
-        print "\nMFA in place. Available factors: \n%s" % choices
+        choice = getpass.getpass(
+            "\nMFA in place. Available factors: \n%s\nwhich factor?" % choices)
+        # user_input = getpass.getpass("test pwd input: ")
 
-        choice = raw_input("which factor? ")
+        # print "\nMFA in place. Available factors: \n%s" % choices
+
+        # choice = raw_input("which factor? ")
 
         return int(choice)
 
@@ -95,7 +113,8 @@ class OktaMFA:
 
         parsed = json.loads(response.text)
 
-        print "the response text is: %s " % response.text
+        logger.info(
+            "the response text is: %s " % response.text)
 
         if parsed["status"] == "SUCCESS":
 
@@ -106,7 +125,10 @@ class OktaMFA:
     def _send_challenge(self, choice):
         url = self.my_supported_factors[choice]["url"]
 
-        print "the state token is: %s " % self.authn_obj["stateToken"]
+        # print "the state token is: %s " % self.authn_obj["stateToken"]
+
+        logger.info(
+            "the state token is: %s " % self.authn_obj["stateToken"])
 
         payload = "{\"stateToken\": \"%s\"}" % self.authn_obj["stateToken"]
 
@@ -120,7 +142,9 @@ class OktaMFA:
             url, data=payload, headers=headers
         )
 
-        print "the response text is: %s " % response.text
+        logger.info(
+            "the response text is: %s " % response.text)
+        # print "the response text is: %s " % response.text
 
         return response
 
