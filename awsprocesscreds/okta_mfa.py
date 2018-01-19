@@ -77,8 +77,11 @@ class OktaMFA:
         for key, value in self.my_supported_factors.iteritems():
             choices += "%s) %s \n" % (key, value["name"])
 
-        choice = getpass.getpass(
-            "\nMFA in place. Available factors: \n%s\nwhich factor?" % choices)
+        x = "\nMFA in place. Available factors:"
+        x += "\nwhich factor?" + choices
+
+        choice = getpass.getpass(x)
+            # "\nMFA in place. Available factors: \n%s\nwhich factor?" % choices)
         # user_input = getpass.getpass("test pwd input: ")
 
         # print "\nMFA in place. Available factors: \n%s" % choices
