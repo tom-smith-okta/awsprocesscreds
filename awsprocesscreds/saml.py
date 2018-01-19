@@ -247,7 +247,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
 
             session_token = okta_mfa.get_session_token()
 
-            print "the session_token is: %s" % session_token
+            # print "the session_token is: %s" % session_token
 
         else:
             logger.info(
