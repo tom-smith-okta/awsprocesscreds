@@ -77,8 +77,8 @@ class OktaMFA:
         for key, value in self.my_supported_factors.iteritems():
             choices += "%s) %s \n" % (key, value["name"])
 
-        x = "\nMFA in place. Available factors:"
-        x += "\nwhich factor?" + choices
+        x = "\nMFA in place. Available factors:\n" + choices
+        x += "\nwhich factor?"
 
         choice = getpass.getpass(x)
             # "\nMFA in place. Available factors: \n%s\nwhich factor?" % choices)
@@ -98,7 +98,9 @@ class OktaMFA:
         if response.status_code != 200:
             raise OktaMFAError("something went wrong with the request.")
 
-        passcode = raw_input("passcode: ")
+        # passcode = raw_input("passcode: ")
+
+        passcode = getpass.getpass("passcode: ")
 
         payload = "{\"stateToken\": \"%s\", \"passCode\": \"%s\"}" % (self.authn_obj["stateToken"], passcode)
 
