@@ -1,3 +1,4 @@
+import sys
 import mock
 import json
 import logging
@@ -9,7 +10,8 @@ import pytest
 
 from tests import create_assertion
 from awsprocesscreds.cli import saml, PrettyPrinterLogHandler
-from awsprocesscreds.saml import SAMLCredentialFetcher
+from awsprocesscreds.saml import SAMLCredentialFetcher, OktaAuthenticator, \
+    SAMLError
 
 
 @pytest.fixture
@@ -22,9 +24,95 @@ def argv():
     ]
 
 
+def test_get_response():
+    authenticator = OktaAuthenticator(None)
+    if sys.version_info >= (3, 0):
+        ips = "builtins.input"
+    else:
+        ips = "__builtin__.raw_input"
+
+    with mock.patch(ips, return_value=""):
+        with pytest.raises(SAMLError):
+            authenticator.get_response("")
+    with mock.patch(ips, return_value="fake input"):
+        response = authenticator.get_response("")
+        assert response == "fake input"
+
+
+def test_get_assertion_from_response(mock_requests_session, assertion):
+    authenticator = OktaAuthenticator(None)
+    session_token = {
+        'sessionToken': '1234',
+    }
+    assertion_form = '<form><input name="SAMLResponse" value="%s"/></form>'
+    assertion_form = assertion_form % assertion.decode('ascii')
+    assertion_response = mock.Mock(
+        spec=requests.Response, status_code=200, text=assertion_form
+    )
+    mock_requests_session.get.return_value = assertion_response
+    result = authenticator.get_assertion_from_response(
+        "endpoint", session_token)
+    assert result == assertion
+
+
+# def test_process_mfa_totp(
+#         mock_requests_session, prompter, assertion, capsys):
+#     authenticator = SAMLCredentialFetcher(
+#         client_creator=None,
+#         provider_name="okta",
+#         saml_config=None,
+#         password_prompter=prompter)
+#     if sys.version_info >= (3, 0):
+#         ips = "builtins.input"
+#     else:
+#         ips = "__builtin__.raw_input"
+#     session_token = {'sessionToken': 'spam', 'status': 'SUCCESS'}
+#     token_response = mock.Mock(
+#         spec=requests.Response,
+#         status_code=200,
+#         text=json.dumps(session_token)
+#     )
+#     assertion_form = '<form><input name="SAMLResponse" value="%s"/></form>'
+#     assertion_form = assertion_form % assertion.decode('ascii')
+#     assertion_response = mock.Mock(
+#         spec=requests.Response, status_code=200, text=assertion_form
+#     )
+
+#     mock_requests_session.post.return_value = token_response
+#     mock_requests_session.get.return_value = assertion_response
+
+#     with mock.patch("getpass.getpass", return_value="12345678"):
+#         with mock.patch(ips, return_value="12345678"):
+#             result = authenticator._authenticator.process_mfa_totp(
+#                 "endpoint", "url", "statetoken")
+#             assert result == assertion
+
+#     # Now test the handling of a 400 error code
+#     error_response = {
+#         "errorCauses": [
+#             {
+#                 "errorSummary": "errorSummary"
+#             }
+#         ]
+#     }
+#     token_response = mock.Mock(
+#         spec=requests.Response,
+#         status_code=400,
+#         text=json.dumps(error_response)
+#     )
+#     mock_requests_session.post.return_value = token_response
+#     with mock.patch("getpass.getpass", return_value="12345678"):
+#         with mock.patch(ips, return_value="12345678"):
+#             result = authenticator._authenticator.process_mfa_totp(
+#                 "endpoint", "url", "statetoken")
+#             stdout, _ = capsys.readouterr()
+#             assert stdout.endswith('\n')
+#             assert result == assertion
+
+
 def test_cli(mock_requests_session, argv, prompter, assertion, client_creator,
              capsys, cache_dir):
-    session_token = {'sessionToken': 'spam'}
+    session_token = {'sessionToken': 'spam', 'status': 'SUCCESS'}
     token_response = mock.Mock(
         spec=requests.Response, status_code=200, text=json.dumps(session_token)
     )
@@ -55,7 +143,7 @@ def test_cli(mock_requests_session, argv, prompter, assertion, client_creator,
 
 def test_no_cache(mock_requests_session, argv, prompter, assertion,
                   client_creator, capsys, cache_dir):
-    session_token = {'sessionToken': 'spam'}
+    session_token = {'sessionToken': 'spam', 'status': 'SUCCESS'}
     token_response = mock.Mock(
         spec=requests.Response, status_code=200, text=json.dumps(session_token)
     )
@@ -92,7 +180,7 @@ def test_no_cache(mock_requests_session, argv, prompter, assertion,
 
 def test_verbose(mock_requests_session, argv, prompter, assertion,
                  client_creator, cache_dir):
-    session_token = {'sessionToken': 'spam'}
+    session_token = {'sessionToken': 'spam', 'status': 'SUCCESS'}
     token_response = mock.Mock(
         spec=requests.Response, status_code=200, text=json.dumps(session_token)
     )
@@ -123,7 +211,7 @@ def test_verbose(mock_requests_session, argv, prompter, assertion,
 
 def test_log_handler_parses_assertion(mock_requests_session, argv, prompter,
                                       client_creator, cache_dir, caplog):
-    session_token = {'sessionToken': 'spam'}
+    session_token = {'sessionToken': 'spam', 'status': 'SUCCESS'}
     token_response = mock.Mock(
         spec=requests.Response, status_code=200, text=json.dumps(session_token)
     )
@@ -160,7 +248,7 @@ def test_log_handler_parses_assertion(mock_requests_session, argv, prompter,
 
 def test_log_handler_parses_dict(mock_requests_session, argv, prompter,
                                  client_creator, cache_dir, caplog):
-    session_token = {'sessionToken': 'spam'}
+    session_token = {'sessionToken': 'spam', 'status': 'SUCCESS'}
     token_response = mock.Mock(
         spec=requests.Response, status_code=200, text=json.dumps(session_token)
     )
@@ -237,7 +325,7 @@ def test_unsupported_saml_provider(client_creator, prompter):
 
 def test_prompter_only_called_once(client_creator, prompter, assertion,
                                    mock_requests_session):
-    session_token = {'sessionToken': 'spam'}
+    session_token = {'sessionToken': 'spam', 'status': 'SUCCESS'}
     token_response = mock.Mock(
         spec=requests.Response, status_code=200, text=json.dumps(session_token)
     )
