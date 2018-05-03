@@ -1,4 +1,5 @@
 from __future__ import print_function
+import sys
 import base64
 import getpass
 import logging
@@ -247,8 +248,13 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
         "'RESEND' to get new code sent): "
     )
 
+    def __obtain_input(self, text):
+        if sys.version_info >= (3, 0):
+            return input(text)
+        return raw_input(text)  # noqa
+
     def get_response(self, prompt):
-        response = input(prompt)
+        response = self.__obtain_input(prompt)
         if response == "":
             raise SAMLError(self._ERROR_AUTH_CANCELLED)
         return response
@@ -450,21 +456,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                 raise SAMLError(self._ERROR_MFA_ENROLL)
             elif parsed["status"] == "MFA_REQUIRED":
                 return self.process_mfa_verification(endpoint, parsed)
-        # If we get to here, the chances are we're running the functional
-        # tests and NOT running against Okta's service so keep the
-        # original code to keep the tests happy as the tests don't use
-        # valid Okta responses ...
-        session_token = parsed['sessionToken']
-        saml_url = endpoint + '?sessionToken=%s' % session_token
-        response = self._requests_session.get(saml_url)
-        logger.info(
-            'Received HTTP response of status code: %s', response.status_code)
-        r = self._extract_saml_assertion_from_response(response.text)
-        logger.info(
-            'Received the following SAML assertion: \n%s', r,
-            extra={'is_saml_assertion': True}
-        )
-        return r
+        raise SAMLError("Code logic failure")
 
     def is_suitable(self, config):
         return (config.get('saml_authentication_type') == 'form' and
@@ -526,7 +518,6 @@ class SAMLCredentialFetcher(CachedCredentialFetcher):
     SAML_FORM_AUTHENTICATORS = {
         'okta': OktaAuthenticator,
         'adfs': ADFSFormsBasedAuthenticator
-
     }
 
     def __init__(self, client_creator, provider_name, saml_config,

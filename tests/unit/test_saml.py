@@ -373,7 +373,9 @@ class TestOktaAuthenticator(object):
         session_token = 'mytoken'
         # 1st response is for authentication.
         mock_requests_session.post.return_value = mock.Mock(
-            text=json.dumps({"sessionToken": session_token}),
+            text=json.dumps(
+                {"sessionToken": session_token, "status": "SUCCESS"}
+            ),
             status_code=200
         )
         # 2nd response is to then retrieve the assertion.
