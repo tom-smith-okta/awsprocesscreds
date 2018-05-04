@@ -68,3 +68,9 @@ venv-awsprocesscreds/
 
 # mypy
 .mypy_cache/
+
+# tom-smith-okta
+awsprocesscreds/accessKey.txt
+awsprocesscreds/snippets.txt
+
+
