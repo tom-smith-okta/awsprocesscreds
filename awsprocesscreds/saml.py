@@ -21,107 +21,15 @@ import botocore.session
 from .compat import escape
 
 
-
-
-# ugh
-
-import contextlib2
-import io
-import os
-import warnings
-import termios
-
-
-
-def unix_getpass(prompt='Password: ', stream=None):
-    """Prompt for a password, with echo turned off.
-    Args:
-      prompt: Written on stream to ask for the input.  Default: 'Password: '
-      stream: A writable file object to display the prompt.  Defaults to
-              the tty.  If no tty is available defaults to sys.stderr.
-    Returns:
-      The seKr3t input.
-    Raises:
-      EOFError: If our input tty or stdin was closed.
-      GetPassWarning: When we were unable to turn echo off on the input.
-    Always restores terminal settings before returning.
-    """
-    fd = None
-    tty = None
-    try:
-        # Always try reading and writing directly on the tty first.
-        fd = os.open('/dev/tty', os.O_RDWR|os.O_NOCTTY)
-        tty = os.fdopen(fd, 'w+', 1)
-        input = tty
-        if not stream:
-            stream = tty
-    except EnvironmentError, e:
-        # If that fails, see if stdin can be controlled.
-        try:
-            fd = sys.stdin.fileno()
-        except (AttributeError, ValueError):
-            passwd = fallback_getpass(prompt, stream)
-        input = sys.stdin
-        if not stream:
-            stream = sys.stderr
-
-    if fd is not None:
-        passwd = None
-        try:
-            old = termios.tcgetattr(fd)     # a copy to save
-            new = old[:]
-            new[3] &= ~termios.ECHO  # 3 == 'lflags'
-            tcsetattr_flags = termios.TCSAFLUSH
-            if hasattr(termios, 'TCSASOFT'):
-                tcsetattr_flags |= termios.TCSASOFT
-            try:
-                termios.tcsetattr(fd, tcsetattr_flags, new)
-#                passwd = raw_input(prompt, stream, input=input)
-                stream.write(prompt)
-                stream.flush()
-                # passwd = raw_input(prompt, stream, input=input)
-            finally:
-                termios.tcsetattr(fd, tcsetattr_flags, old)
-                stream.flush()  # issue7208
-        except termios.error, e:
-            if passwd is not None:
-                # _raw_input succeeded.  The final tcsetattr failed.  Reraise
-                # instead of leaving the terminal in an unknown state.
-                raise
-            # We can't control the tty or stdin.  Give up and use normal IO.
-            # fallback_getpass() raises an appropriate warning.
-            del input, tty  # clean up unused file objects before blocking
-            passwd = fallback_getpass(prompt, stream)
-
-    passwd = raw_input('')
-    stream.write('\n')
-    return passwd
-
-
-# end ugh
-
-
-
 class SAMLError(Exception):
     pass
 
 
 logger = logging.getLogger(__name__)
 
-def geterrpass(text):
-    # print(text, file=sys.stderr, end="")
-    sys.stderr.write(text)
-    sys.stderr.flush()
-    return raw_input('')
-
 
 class FormParserError(Exception):
     pass
-
-# this is a utility to print to send output to stderr
-# since we can't use stdout in this context
-# def eprint(*args, **kwargs):
-#     print(*args, file=sys.stderr, **kwargs)
 
 
 def _role_selector(role_arn, roles):
@@ -229,7 +137,7 @@ class GenericFormsBasedAuthenticator(SAMLAuthenticator):
         self._validate_config_values(config)
         self.endpoint = config['saml_endpoint']
         login_url, form_data = self._retrieve_login_form_from_endpoint(
-            endpoint)
+            self.endpoint)
         self._fill_in_form_values(config, form_data)
         response = self._send_form_post(login_url, form_data)
         return self._extract_saml_assertion_from_response(response)
@@ -356,17 +264,6 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
         }
     }
 
-    def __obtain_input(self, text):
-        if sys.version_info >= (3, 0):
-            return input(text)
-        return raw_input(text)  # noqa
-
-    def get_response(self, prompt):
-        response = self.__obtain_input(prompt)
-        if response == "":
-            raise SAMLError(self._ERROR_AUTH_CANCELLED)
-        return response
-
     def get_assertion_from_response(self, parsed):
         session_token = parsed['sessionToken']
         saml_url = self.endpoint + '?sessionToken=%s' % session_token
@@ -380,9 +277,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
         )
         return r
 
-    ##########################################################################
-    ## define behavior for each Okta MFA factor
-    ##########################################################################
+    # define behavior for each Okta MFA factor
 
     # Okta verify (one-time-password)
     def process_mfa_okta_totp(self, url, statetoken):
@@ -472,9 +367,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                                              "Press RETURN to continue\r\n")
                                             % error)
 
-    ##########################################################################
-    ## disply MFA options to user
-    ##########################################################################
+    # disply MFA options to user
     def display_mfa_choices(self, my_supported_factors):
         index = 1
         prompt = ""
@@ -502,19 +395,19 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
             if choice > 0 and choice < count:
                 return choice
 
-    def list_supported_factors():
+    def list_supported_factors(self):
         sf = ""
-        for key,val in self._SUPPORTED_FACTORS.items():
+        for key, val in self._SUPPORTED_FACTORS.items():
             sf += key + "\n"
         return sf
 
     def get_supported_factors(self, parsed):
-        my_sf = [] # making this a list so the order is stable
-        for k,v in enumerate(parsed["_embedded"]["factors"]):
+        my_sf = []  # making this a list so the order is stable
+        for k, v in enumerate(parsed["_embedded"]["factors"]):
             factorType = v["factorType"]
-            provider = v["provider"]
-            for key,val in self._SUPPORTED_FACTORS.items():
-                if val["factorType"] == factorType and val["provider"] == provider:
+            prov = v["provider"]
+            for key, val in self._SUPPORTED_FACTORS.items():
+                if val["factorType"] == factorType and val["provider"] == prov:
                     # associate the friendly factor name (key) with the factor
                     # object from parsed
                     my_sf.append({key: v})
@@ -524,12 +417,13 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
 
     def issue_mfa_challenge(self, state_token, choice):
 
-        for k,v in self.my_supported_factors[choice - 1].items():
+        for k, v in self.my_supported_factors[choice - 1].items():
             factor = v
 
         url = factor["_links"]["verify"]["href"]
 
-        if factor["factorType"] == "token:software:totp" and factor["provider"] == "OKTA":
+        if factor["factorType"] == "token:software:totp" and \
+           factor["provider"] == "OKTA":
             return self.process_mfa_okta_totp(url, state_token)
         elif factor["factorType"] == "push" and factor["provider"] == "OKTA":
             return self.process_mfa_okta_push(url, state_token)
@@ -542,20 +436,21 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
     def process_mfa_verification(self, parsed):
 
         # First, create a whitelist of the user's factors
-        # (i.e. weed out any factors that this script does not currently support)
+        # (i.e. weed out any factors that this script does
+        # not currently support)
 
         self.my_supported_factors = self.get_supported_factors(parsed)
 
         if len(self.my_supported_factors) == 0:
             msg = "This user does not have any supported factors."
-            msg = msg + "\n" + "This tool currently supports the following factors:"
-            msg = msg + "\n" + self.list_supported_factors()
+            msg += "\n" + "This tool currently supports the following factors:"
+            msg += "\n" + self.list_supported_factors()
             raise SAMLError(msg)
 
         # If we've only got one factor, pick that automatically
         if len(self.my_supported_factors) == 1:
             choice = 1
-        else: # otherwise let the user choose from a list
+        else:  # otherwise let the user choose from a list
             choice = self.get_mfa_choice(self.my_supported_factors)
 
         # issue the challenge to the user and get a SAML assertion back
@@ -746,7 +641,8 @@ class SAMLCredentialFetcher(CachedCredentialFetcher):
                   " roles:\r\n") + prompt
         prompt += ("Enter the number corresponding to your choice "
                    "or press RETURN to cancel authentication: ")
-        response = self._get_response(prompt)
+        # response = self._get_response(prompt)
+        response = self._password_prompter(prompt)
 
         choice = 0
         try:
@@ -756,12 +652,10 @@ class SAMLCredentialFetcher(CachedCredentialFetcher):
         if choice > 0 and choice < count:
             return choice
 
-    ##########################################################################
-    ## allow user to choose role from a list
-    ##########################################################################
+    # allow user to choose role from a list
 
     # add a test here for empty role object from SAML assertion
-    # also what if a user configures a role but the role is not in 
+    # also what if a user configures a role but the role is not in
     # the assertion?
     def _get_role_and_principal_arn(self, assertion):
         idp_roles = self._parse_roles(assertion)

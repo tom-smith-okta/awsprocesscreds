@@ -69,3 +69,4 @@ venv.bak/
 .mypy_cache/
 
 **/venv-awsprocesscreds/
+.pytest_cache/
