@@ -380,9 +380,15 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
         )
         return r
 
+    ##########################################################################
+    ## define behavior for each Okta MFA factor
+    ##########################################################################
+
+    # Okta verify (one-time-password)
     def process_mfa_okta_totp(self, url, statetoken):
         while True:
-            response = self.get_response(self._MSG_AUTH_CODE)
+            response = self._password_prompter("%s\r\n" % self._MSG_AUTH_CODE)
+
             totp_response = self._requests_session.post(
                 url,
                 headers={'Content-Type': 'application/json',
@@ -398,9 +404,8 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                 self._password_prompter("%s\r\nPress RETURN to continue\r\n"
                                         % error)
 
+    # Okta verify (push)
     def process_mfa_okta_push(self, url, statetoken):
-        eprint("sent push to device, awaiting response...")
-
         while True:
             totp_response = self._requests_session.post(
                 url,
@@ -414,12 +419,10 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
             elif totp_parsed["factorResult"] != "WAITING":
                 raise SAMLError(self._ERROR_AUTH_CANCELLED)
 
+    # Security question
     def process_mfa_security_question(self, url, statetoken, question):
         while True:
-            # response = self.get_response(question + " ")
-
-            # response = self._password_prompter("%s\r\n" % question)
-            response = unix_getpass("%s\r\n" % question)
+            response = self._password_prompter("%s\r\n" % question)
 
             totp_response = self._requests_session.post(
                 url,
@@ -436,6 +439,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                 self._password_prompter("%s\r\nPress RETURN to continue\r\n"
                                         % error)
 
+    # SMS - verify code
     def verify_sms_factor(self, url, statetoken, passcode):
         body = {'stateToken': statetoken}
         if passcode != "":
@@ -447,10 +451,12 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
             data=json.dumps(body)
         )
 
+    # SMS - get response from user
     def process_mfa_sms(self, url, statetoken):
         self.verify_sms_factor(url, statetoken, "")
         while True:
-            response = self.get_response(self._MSG_SMS_CODE)
+            response = self._password_prompter("%s\r\n" % self._MSG_SMS_CODE)
+
             if response == "RESEND":
                 response = ""
             sms_response = self.verify_sms_factor(url, statetoken, response)
@@ -466,6 +472,9 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                                              "Press RETURN to continue\r\n")
                                             % error)
 
+    ##########################################################################
+    ## disply MFA options to user
+    ##########################################################################
     def display_mfa_choices(self, my_supported_factors):
         index = 1
         prompt = ""
@@ -482,10 +491,8 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                       " choices:\r\n") + prompt
             prompt += ("Enter the number corresponding to your choice "
                        "or press RETURN to cancel authentication: ")
-            #response = self.get_response(prompt)
 
-            #response = self._password_prompter(prompt)
-            response = unix_getpass(prompt)
+            response = self._password_prompter(prompt)
 
             choice = 0
             try:
@@ -748,6 +755,10 @@ class SAMLCredentialFetcher(CachedCredentialFetcher):
             pass
         if choice > 0 and choice < count:
             return choice
+
+    ##########################################################################
+    ## allow user to choose role from a list
+    ##########################################################################
 
     # add a test here for empty role object from SAML assertion
     # also what if a user configures a role but the role is not in 
