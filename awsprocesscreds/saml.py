@@ -667,9 +667,7 @@ class SAMLCredentialFetcher(CachedCredentialFetcher):
             for r in idp_roles:
                 my_roles.append(r['RoleArn'])
 
-            choice = int(self._display_roles_to_user(my_roles))
-
-            print(type(choice))
+            choice = self._display_roles_to_user(my_roles)
 
             index = choice - 1
 
