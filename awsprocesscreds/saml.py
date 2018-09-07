@@ -135,9 +135,8 @@ class GenericFormsBasedAuthenticator(SAMLAuthenticator):
         # properly, so we have to validate config params before
         # going any further.
         self._validate_config_values(config)
-        self.endpoint = config['saml_endpoint']
-        login_url, form_data = self._retrieve_login_form_from_endpoint(
-            self.endpoint)
+        endpoint = config['saml_endpoint']
+        login_url, form_data = self._retrieve_login_form_from_endpoint(endpoint)
         self._fill_in_form_values(config, form_data)
         response = self._send_form_post(login_url, form_data)
         return self._extract_saml_assertion_from_response(response)
@@ -147,8 +146,7 @@ class GenericFormsBasedAuthenticator(SAMLAuthenticator):
             if required not in config:
                 raise SAMLError(self._ERROR_MISSING_CONFIG % required)
 
-    def _retrieve_login_form_from_endpoint(self):
-        endpoint = self.endpoint
+    def _retrieve_login_form_from_endpoint(self, endpoint):
         response = self._requests_session.get(endpoint, verify=True)
         self._assert_non_error_response(response)
         login_form_html_node = self._parse_form_from_html(response.text)
@@ -264,9 +262,9 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
         }
     }
 
-    def get_assertion_from_response(self, parsed):
+    def get_assertion_from_response(self, endpoint, parsed):
         session_token = parsed['sessionToken']
-        saml_url = self.endpoint + '?sessionToken=%s' % session_token
+        saml_url = endpoint + '?sessionToken=%s' % session_token
         response = self._requests_session.get(saml_url)
         logger.info(
             'Received HTTP response of status code: %s', response.status_code)
@@ -457,11 +455,10 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
         return self.issue_mfa_challenge(parsed["stateToken"], choice)
 
     def retrieve_saml_assertion(self, config):
-        # unix_getpass("hello?")
 
         self._validate_config_values(config)
-        self.endpoint = config['saml_endpoint']
-        hostname = urlsplit(self.endpoint).netloc
+        endpoint = config['saml_endpoint']
+        hostname = urlsplit(endpoint).netloc
         auth_url = 'https://%s/api/v1/authn' % hostname
         username = config['saml_username']
         password = self._password_prompter("Password: ")
@@ -486,7 +483,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
                             parsed["errorSummary"])
         if "status" in parsed:
             if parsed["status"] == "SUCCESS":
-                return self.get_assertion_from_response(parsed)
+                return self.get_assertion_from_response(endpoint, parsed)
             elif parsed["status"] == "LOCKED_OUT":
                 raise SAMLError(self._ERROR_LOCKED_OUT %
                                 parsed["_links"]["href"])
@@ -570,6 +567,7 @@ class SAMLCredentialFetcher(CachedCredentialFetcher):
         self._role_selector = role_selector
         self._config = saml_config
         self._provider_name = provider_name
+        self._password_prompter = password_prompter
         authenticator_cls = self.SAML_FORM_AUTHENTICATORS.get(provider_name)
         if authenticator_cls is None:
             raise ValueError('Unsupported SAML provider: %s' % provider_name)
@@ -641,7 +639,6 @@ class SAMLCredentialFetcher(CachedCredentialFetcher):
                   " roles:\r\n") + prompt
         prompt += ("Enter the number corresponding to your choice "
                    "or press RETURN to cancel authentication: ")
-        # response = self._get_response(prompt)
         response = self._password_prompter(prompt)
 
         choice = 0
@@ -659,6 +656,10 @@ class SAMLCredentialFetcher(CachedCredentialFetcher):
     # the assertion?
     def _get_role_and_principal_arn(self, assertion):
         idp_roles = self._parse_roles(assertion)
+
+        if not idp_roles:
+            raise SAMLError('Unable to find any roles in the SAML assertion')
+
         role_arn = self._role_selector(self._config.get('role_arn'), idp_roles)
 
         if not role_arn:
@@ -666,9 +667,13 @@ class SAMLCredentialFetcher(CachedCredentialFetcher):
             for r in idp_roles:
                 my_roles.append(r['RoleArn'])
 
-            choice = self._display_roles_to_user(my_roles)
+            choice = int(self._display_roles_to_user(my_roles))
 
-            role_arn = my_roles[choice - 1]
+            print(type(choice))
+
+            index = choice - 1
+
+            role_arn = my_roles[index]
 
             role_arn = self._role_selector(role_arn, idp_roles)
 

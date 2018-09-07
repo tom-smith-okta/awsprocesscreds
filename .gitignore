@@ -70,3 +70,4 @@ venv.bak/
 
 **/venv-awsprocesscreds/
 .pytest_cache/
+**_coverage.txt

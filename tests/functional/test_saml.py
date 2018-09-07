@@ -24,19 +24,19 @@ def argv():
     ]
 
 
-def test_get_response():
-    authenticator = OktaAuthenticator(None)
-    if sys.version_info >= (3, 0):
-        ips = "builtins.input"
-    else:
-        ips = "__builtin__.raw_input"
+# def test_get_response():
+#     authenticator = OktaAuthenticator(None)
+#     if sys.version_info >= (3, 0):
+#         ips = "builtins.input"
+#     else:
+#         ips = "__builtin__.raw_input"
 
-    with mock.patch(ips, return_value=""):
-        with pytest.raises(SAMLError):
-            authenticator.get_response("")
-    with mock.patch(ips, return_value="fake input"):
-        response = authenticator.get_response("")
-        assert response == "fake input"
+#     with mock.patch(ips, return_value=""):
+#         with pytest.raises(SAMLError):
+#             authenticator.get_response("")
+#     with mock.patch(ips, return_value="fake input"):
+#         response = authenticator.get_response("")
+#         assert response == "fake input"
 
 
 def test_get_assertion_from_response(mock_requests_session, assertion):
