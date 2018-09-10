@@ -75,7 +75,9 @@ class GenericFormsBasedAuthenticator(SAMLAuthenticator):
     )
     _ERROR_LOGIN_FAILED = (
         'Login failed, could not retrieve SAML assertion. '
-        'Double check you have entered your password correctly.'
+        'Double check you have entered your password correctly,'
+        'and that the user is assigned to the AWS application'
+        'in your identity provider.'
     )
     _ERROR_MISSING_CONFIG = (
         'Missing required config value for SAML: "%s"'
@@ -231,7 +233,7 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
     )
 
     _ERROR_MFA_ENROLL = (
-        "You need to enroll a MFA first."
+        "You are not enrolled in MFA. You need to enroll an MFA factor first."
     )
 
     _MSG_AUTH_CODE = (
