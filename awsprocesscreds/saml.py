@@ -246,6 +246,10 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
     )
 
     _SUPPORTED_FACTORS = {
+        'Google authenticator': {
+            'factorType': 'token:software:totp',
+            'provider': 'GOOGLE'
+        },
         'sms': {
             'factorType': 'sms',
             'provider': 'OKTA'
@@ -280,7 +284,8 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
     # define behavior for each Okta MFA factor
 
     # Okta verify (one-time-password)
-    def process_mfa_okta_totp(self, endpoint, url, statetoken):
+    # or Google Authenticator
+    def process_mfa_totp(self, endpoint, url, statetoken):
         while True:
             response = self._password_prompter("%s\r\n" % self._MSG_AUTH_CODE)
 
@@ -423,8 +428,8 @@ class OktaAuthenticator(GenericFormsBasedAuthenticator):
         url = factor["_links"]["verify"]["href"]
 
         if factor["factorType"] == "token:software:totp" and \
-           factor["provider"] == "OKTA":
-            return self.process_mfa_okta_totp(endpoint, url, state_token)
+           (factor["provider"] == "OKTA" or factor["provider"] == "GOOGLE"):
+            return self.process_mfa_totp(endpoint, url, state_token)
         elif factor["factorType"] == "push" and factor["provider"] == "OKTA":
             return self.process_mfa_okta_push(endpoint, url, state_token)
         elif factor["factorType"] == "question":
