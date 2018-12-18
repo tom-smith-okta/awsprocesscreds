@@ -39,14 +39,16 @@ Now that you have installed the `awsprocesscreds` tool, you can add profiles tha
 
 To test, add a new profile to your `.aws/config` file like the following example:
 
+>Note: line breaks are shown here for readability only. In your `config` file the command must all be on one line.
+
 ```
 # example for user Clark Kent
 [profile ck]
-credential_process = awsprocesscreds-saml \
--e https://partnerpoc.oktapreview.com/home/amazon_aws/0oadci5fdr3PZtXB30h7/137 \
--u clark.kent \
--p okta \
--a arn:aws:iam::919536943542:role/okta2_S3_read_only \
+credential_process = awsprocesscreds-saml  
+-e https://partnerpoc.oktapreview.com/home/amazon_aws/0oadci5fdr3PZtXB30h7/137  
+-u clark.kent  
+-p okta  
+-a arn:aws:iam::919536943542:role/okta2_S3_read_only  
 --no-cache
 ```
 
@@ -56,7 +58,7 @@ You can then execute a command like:
 aws s3 ls --profile ck
 ```
 
-and you will be prompted to enter Clark Kent's credentials.
+and you will be prompted to enter Clark Kent's Okta credentials.
 
 The syntax of the credential_process and awsprocesscreds-saml commands is as follows:
 
