@@ -646,3 +646,26 @@ class TestSAMLCredentialFetcher(object):
             cache.clear()
 
         assert mock_authenticator.retrieve_saml_assertion.call_count == 1
+
+    def test_valid_okta_totp(self, fetcher, )
+
+        def process_mfa_okta_totp(self, url, statetoken):
+        while True:
+            response = self._password_prompter("%s\r\n" % self._MSG_AUTH_CODE)
+
+            totp_response = self._requests_session.post(
+                url,
+                headers={'Content-Type': 'application/json',
+                         'Accept': 'application/json'},
+                data=json.dumps({'stateToken': statetoken,
+                                 'passCode': response})
+            )
+            totp_parsed = json.loads(totp_response.text)
+            if totp_response.status_code == 200:
+                return self.get_assertion_from_response(totp_parsed)
+            elif totp_response.status_code >= 400:
+                error = totp_parsed["errorCauses"][0]["errorSummary"]
+                self._password_prompter("%s\r\nPress RETURN to continue\r\n"
+                                        % error)
+
+

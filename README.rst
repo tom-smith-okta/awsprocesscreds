@@ -61,6 +61,8 @@ Example okta configuration::
     region = us-west-2
     credential_process = awsprocesscreds-saml -e https://example.okta.com/home/amazon_aws/blob/123 -u 'monty@example.com' -p okta -a arn:aws:iam::123456789012:role/okta-dev
 
+    Note that with Okta, the -a parameters is optional. If you omit the arn then you will be prompted to choose from a list of roles for the user.
+
 Example adfs configuration::
 
     [profile adfs]
